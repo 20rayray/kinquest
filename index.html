@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KinQuest</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#cfe8b8;--panel:#fff8e1;--ink:#3b2a20;--wood:#8a5a34;--wood2:#6b4226;--grass:#5f9e3f;--sun:#f2b92b;--berry:#c93f68;--sky:#8fd0e8;--muted:#7a6a58;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#1d2f2c;--panel:#2e3b34;--ink:#f3ead2;--wood:#b0804f;--wood2:#8a5a34;--grass:#7cc055;--sun:#f2c24b;--berry:#e5658a;--sky:#2c5a6b;--muted:#b5a98f;color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'VT323',ui-monospace,monospace;font-size:22px;line-height:1.25}
+h1,h2,.px{font-family:'Press Start 2P',ui-monospace,monospace;font-weight:400}
+main{max-width:780px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(40px + env(safe-area-inset-bottom,0px))}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+h1{font-size:22px;margin:0}
+h2{font-size:13px;margin:0 0 10px;line-height:1.5}
+.box{background:var(--panel);border:4px solid var(--wood2);box-shadow:0 4px 0 var(--wood2);padding:14px;margin-bottom:16px}
+.heroes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.hero{display:grid;gap:8px;align-content:start}
+.stage{background:var(--sky);border:4px solid var(--wood2);height:130px;display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden}
+.stage::after{content:"";position:absolute;left:0;right:0;bottom:0;height:22px;background:var(--grass);border-top:4px solid var(--wood2)}
+.stage svg{width:92px;height:92px;position:relative;z-index:1;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.bar{height:18px;border:3px solid var(--wood2);background:var(--bg)}
+.bar i{display:block;height:100%;background:var(--grass);width:0;transition:width .35s steps(8)}
+.chip{font-family:'Press Start 2P',ui-monospace,monospace;font-size:11px}
+.coin{color:var(--sun);text-shadow:0 2px 0 var(--wood2)}
+form,.addrow{display:flex;gap:8px;flex-wrap:wrap}
+input[type=text],input[type=email],input[type=password],select{font:inherit;font-size:22px;padding:8px 10px;border:4px solid var(--wood2);background:var(--bg);color:var(--ink)}
+input[type=text],input[type=email],input[type=password]{flex:1 1 180px;min-width:0}
+button{font-family:'Press Start 2P',ui-monospace,monospace;font-size:10px;padding:10px 11px;border:4px solid var(--wood2);background:var(--sun);color:#3b2a20;cursor:pointer;box-shadow:0 3px 0 var(--wood2)}
+button:active{transform:translateY(3px);box-shadow:none}
+button.alt{background:var(--panel);color:var(--ink)}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:4px solid var(--berry);outline-offset:2px}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+li.task{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:8px 10px;border:3px solid var(--wood);background:var(--bg)}
+li.task .t{flex:1 1 200px;overflow-wrap:anywhere}
+li.task .m{flex:1 1 100%;font-size:18px;color:var(--muted)}
+li.approved .t{text-decoration:line-through;color:var(--muted)}
+.empty,.note{color:var(--muted)}
+.shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.item{border:3px solid var(--wood);padding:10px;background:var(--bg);display:grid;gap:6px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;font-family:'Press Start 2P',ui-monospace,monospace;font-size:11px;border:4px solid var(--sun);opacity:0;pointer-events:none;transition:opacity .2s;text-align:center;max-width:92vw;z-index:9}
+.toast.on{opacity:1}
+#view{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;z-index:8}
+#view img{max-width:100%;max-height:75vh;border:4px solid var(--wood2);background:var(--panel)}
+.code{font-family:'Press Start 2P',ui-monospace,monospace;font-size:16px;color:var(--berry)}
+@media (max-width:520px){.heroes{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><h1>KinQuest</h1><button class="alt" id="out" hidden>Log out</button></div>
+  <p id="msg" class="box">Loading…</p>
+
+  <section id="auth" class="box" hidden>
+    <h2>Log in or create an account</h2>
+    <form id="authform">
+      <input type="email" id="email" placeholder="Email" autocomplete="email" required aria-label="Email">
+      <input type="password" id="pw" placeholder="Password (6+ characters)" autocomplete="current-password" minlength="6" required aria-label="Password">
+      <input type="text" id="nick" placeholder="Nickname (new accounts)" maxlength="16" aria-label="Nickname">
+      <button type="submit" id="login">Log in</button>
+      <button type="button" class="alt" id="signup">Create account</button>
+    </form>
+    <p class="note" id="autherr"></p>
+  </section>
+
+  <section id="duo" class="box" hidden>
+    <h2>Pair up with your partner</h2>
+    <p>One of you starts a duo and shares the invite code. The other joins with it.</p>
+    <div class="addrow"><button id="mkduo">Start a duo</button></div>
+    <p class="note">Or join your partner’s duo:</p>
+    <form id="joinform"><input type="text" id="jcode" placeholder="Invite code" maxlength="8" required aria-label="Invite code"><button type="submit" class="alt">Join</button></form>
+  </section>
+
+  <div id="app" hidden>
+    <section class="box heroes" aria-label="Players">
+      <div class="hero">
+        <div class="stage"><svg id="av" viewBox="0 0 16 16" shape-rendering="crispEdges" role="img" aria-label="Your character"></svg></div>
+        <div class="row"><span class="px" style="font-size:12px"><span id="myname"></span> · Lv <span id="lvl"></span></span><span class="chip coin"><span id="coins"></span> coins</span></div>
+        <div class="bar" role="progressbar" aria-label="Experience"><i id="xpbar"></i></div>
+        <div class="row"><span id="xptxt"></span><span id="streak"></span></div>
+      </div>
+      <div class="hero" id="pbox">
+        <div class="stage"><svg id="pav" viewBox="0 0 16 16" shape-rendering="crispEdges" role="img" aria-label="Your partner"></svg></div>
+        <div class="row"><span class="px" style="font-size:12px"><span id="pname"></span> · Lv <span id="plvl"></span></span><span class="chip coin"><span id="pcoins"></span> coins</span></div>
+      </div>
+    </section>
+    <p id="wait" class="box" hidden>Waiting for your partner. Give them this invite code: <span class="code" id="icode"></span></p>
+
+    <section class="box" aria-label="Add a quest">
+      <h2>New quest</h2>
+      <form id="add">
+        <input type="text" id="title" placeholder="What needs doing?" maxlength="80" required aria-label="Task name">
+        <select id="size" aria-label="Task size"><option value="s">Small: 5 coins, 10 EXP</option><option value="m">Medium: 10 coins, 20 EXP</option><option value="l">Big: 20 coins, 40 EXP</option></select>
+        <select id="for" aria-label="Who is it for"></select>
+        <button type="submit">Add quest</button>
+      </form>
+    </section>
+    <section class="box"><h2>My quests</h2><ul id="mine"></ul></section>
+    <section class="box" id="theirbox"><h2 id="theirh"></h2><ul id="theirs"></ul></section>
+    <section class="box"><h2>Shop</h2><div class="shop" id="shop"></div></section>
+    <p class="note">Coins and EXP are paid out only after your partner approves a quest.</p>
+  </div>
+</main>
+<input type="file" id="pick" accept="image/*" hidden>
+<div id="view" hidden><img id="vimg" alt="Proof photo"><button id="vclose">Close</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<script>
+var SUPABASE_URL='https://xuxfbssoehjenuzwouoh.supabase.co';
+var SUPABASE_KEY='sb_publishable_pMCeqe0R93horIH7AyZHzg_LtTw9glx';
+(function(){
+var $=function(i){return document.getElementById(i);};
+var SIZES={s:{c:5,x:10},m:{c:10,x:20},l:{c:20,x:40}};
+var ITEMS=[{id:'straw',name:'Straw hat',slot:'hat',price:30},{id:'crown',name:'Gold crown',slot:'hat',price:120},{id:'shades',name:'Sunglasses',slot:'face',price:40},{id:'scarf',name:'Berry scarf',slot:'neck',price:25},{id:'teal',name:'Teal shirt',slot:'shirt',price:20},{id:'plum',name:'Plum shirt',slot:'shirt',price:20}];
+var SHIRT={none:'#5f9e3f',teal:'#2f9aa6',plum:'#8a4fa0'};
+var sb,me,P,Q,tasks=[],names={},busy=false,pickFor=null,tt,lt,subbed=false;
+function need(l){return 50*l;}
+function ds(o){var d=new Date();d.setDate(d.getDate()+o);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+function toast(m){var t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){t.classList.remove('on');},2400);}
+function show(w){['msg','auth','duo','app'].forEach(function(x){$(x).hidden=x!==w;});$('out').hidden=(w==='auth'||w==='msg');}
+function say(m){$('msg').textContent=m;show('msg');}
+function fail(e){console.error(e);toast('Couldn’t save. Check your connection and try again.');}
+function R(x,y,w,h,c){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+c+'"/>';}
+function avatar(e){e=e||{};var s=R(5,14,2,2,'#3b2a20')+R(9,14,2,2,'#3b2a20')+R(4,9,8,5,SHIRT[e.shirt]||SHIRT.none)+R(3,9,1,4,'#f1c27d')+R(12,9,1,4,'#f1c27d')+R(4,4,8,5,'#f1c27d')+R(4,2,8,2,'#4a2f1d')+R(3,3,1,3,'#4a2f1d')+R(12,3,1,3,'#4a2f1d')+R(6,6,1,1,'#2b1d14')+R(9,6,1,1,'#2b1d14')+R(7,8,2,1,'#c0644a');
+ if(e.face==='shades')s+=R(5,6,6,1,'#1b1b1b')+R(5,5,2,2,'#1b1b1b')+R(9,5,2,2,'#1b1b1b');
+ if(e.neck==='scarf')s+=R(4,9,8,1,'#c93f68')+R(10,10,2,3,'#c93f68');
+ if(e.hat==='straw')s+=R(2,3,12,1,'#d9a441')+R(4,1,8,2,'#e8bb55')+R(4,2,8,1,'#c93f68');
+ if(e.hat==='crown')s+=R(4,1,8,2,'#f2c230')+R(4,0,1,1,'#f2c230')+R(7,0,2,1,'#f2c230')+R(11,0,1,1,'#f2c230')+R(7,1,2,1,'#c93f68');
+ return s;}
+
+async function init(){
+  if(typeof supabase==='undefined'){say('Couldn’t load the game’s connection library. Check your internet and refresh.');return;}
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  var s=await sb.auth.getSession();
+  if(s.data&&s.data.session){me=s.data.session.user;await start();}else show('auth');
+}
+async function start(){
+  say('Loading…');
+  await loadAll();
+  if(!subbed){subbed=true;
+    sb.channel('kq').on('postgres_changes',{event:'*',schema:'public',table:'tasks'},refresh).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},refresh).subscribe();
+    setInterval(refresh,20000);}
+}
+function refresh(){clearTimeout(lt);lt=setTimeout(loadAll,250);}
+async function loadAll(){
+  if(!me)return;
+  var r=await sb.from('profiles').select('*');
+  if(r.error){say('Couldn’t load your data. Make sure the database setup was run, then refresh.');return;}
+  P=r.data.find(function(x){return x.id===me.id;});
+  if(!P){await new Promise(function(f){setTimeout(f,1200);});r=await sb.from('profiles').select('*');P=r.data&&r.data.find(function(x){return x.id===me.id;});}
+  if(!P){say('Your profile isn’t ready. Refresh in a moment.');return;}
+  Q=r.data.find(function(x){return x.id!==me.id;})||null;
+  names={};r.data.forEach(function(x){names[x.id]=x.name;});
+  if(!P.duo_id){show('duo');return;}
+  var t=await sb.from('tasks').select('*').order('created_at',{ascending:false});
+  tasks=t.data||[];
+  show('app');render();claim();
+}
+
+function render(){
+  var n=need(P.level),live=(P.last_day===ds(0)||P.last_day===ds(-1))?P.streak:0;
+  $('myname').textContent=P.name;$('lvl').textContent=P.level;$('coins').textContent=P.coins;
+  $('xpbar').style.width=Math.min(100,P.xp/n*100)+'%';$('xptxt').textContent=P.xp+' / '+n+' EXP';
+  $('streak').textContent='Streak: '+live+(live===1?' day':' days');$('av').innerHTML=avatar(P.eq);
+  $('pbox').hidden=!Q;$('wait').hidden=!!Q;$('theirbox').hidden=!Q;
+  if(Q){$('pname').textContent=Q.name;$('plvl').textContent=Q.level;$('pcoins').textContent=Q.coins;$('pav').innerHTML=avatar(Q.eq);$('theirh').textContent=Q.name+'’s quests';}
+  else sb.from('duos').select('code').maybeSingle().then(function(x){if(x.data)$('icode').textContent=x.data.code;});
+  var sel=$('for'),v=sel.value||'me';sel.innerHTML='';
+  var o=document.createElement('option');o.value='me';o.textContent='For me';sel.appendChild(o);
+  if(Q){var o2=document.createElement('option');o2.value='them';o2.textContent='For '+Q.name;sel.appendChild(o2);}
+  sel.value=(v==='them'&&Q)?'them':'me';
+  list($('mine'),tasks.filter(function(t){return t.assignee===me.id;}),true);
+  if(Q)list($('theirs'),tasks.filter(function(t){return t.assignee===Q.id;}),false);
+  shop();
+}
+function btn(txt,cls,fn){var b=document.createElement('button');b.textContent=txt;if(cls)b.className=cls;b.onclick=fn;return b;}
+function setStatus(t,s){sb.from('tasks').update({status:s}).eq('id',t.id).then(function(r){if(r.error)fail(r.error);else refresh();});}
+function list(ul,arr,mine){
+  ul.innerHTML='';
+  if(!arr.length){var e=document.createElement('li');e.className='empty';e.textContent=mine?'No quests yet. Add one above.':'Nothing here yet.';ul.appendChild(e);return;}
+  arr.forEach(function(t){
+    var g=SIZES[t.size]||SIZES.s,li=document.createElement('li');li.className='task '+t.status;
+    var sp=document.createElement('span');sp.className='t';sp.textContent=t.title;li.appendChild(sp);
+    var st={todo:'To do',rejected:'Sent back, try again',pending:mine?'Waiting for a check':'Ready to check',approved:'Approved'}[t.status]||'';
+    var m=document.createElement('span');m.className='m';
+    m.textContent=st+' · +'+g.c+' coins, +'+g.x+' EXP'+(t.creator!==t.assignee?' · from '+(t.creator===me.id?'you':(names[t.creator]||'partner')):'');li.appendChild(m);
+    if(mine&&(t.status==='todo'||t.status==='rejected')){
+      li.appendChild(btn('Add photo proof','',function(){pickFor=t;$('pick').click();}));
+      li.appendChild(btn('Mark done','alt',function(){submit(t,null);}));
+    }
+    if(t.has_photo&&(t.status==='pending'||t.status==='approved'))li.appendChild(btn('View photo','alt',function(){viewPhoto(t);}));
+    if(!mine&&t.status==='pending'){
+      li.appendChild(btn('Approve','',function(){setStatus(t,'approved');}));
+      li.appendChild(btn('Send back','alt',function(){setStatus(t,'rejected');}));
+    }
+    if(t.creator===me.id&&t.status!=='approved'&&t.status!=='pending'){
+      li.appendChild(btn('×','alt',function(){sb.from('tasks').delete().eq('id',t.id).then(function(r){if(r.error)fail(r.error);else refresh();});}));
+    }
+    ul.appendChild(li);
+  });
+}
+function savePlayer(ch,msg){
+  sb.from('profiles').update(ch).eq('id',me.id).then(function(r){if(r.error)fail(r.error);else{if(msg)toast(msg);refresh();}});
+}
+function shop(){
+  var sh=$('shop');sh.innerHTML='';var eq=P.eq||{},own=P.owned||[];
+  ITEMS.forEach(function(it){
+    var has=own.indexOf(it.id)>-1,on=eq[it.slot]===it.id,d=document.createElement('div');d.className='item';
+    var nm=document.createElement('span');nm.textContent=it.name;
+    var p=document.createElement('span');p.className='note';p.textContent=has?(on?'Wearing it':'Owned'):it.price+' coins';
+    var b=has?btn(on?'Take off':'Wear','alt',function(){var e=Object.assign({},eq);if(on)delete e[it.slot];else e[it.slot]=it.id;savePlayer({eq:e});})
+             :btn('Buy','',function(){if(P.coins<it.price)return;var e=Object.assign({},eq);e[it.slot]=it.id;savePlayer({coins:P.coins-it.price,owned:own.concat([it.id]),eq:e},'Bought '+it.name);});
+    if(!has)b.disabled=P.coins<it.price;
+    d.appendChild(nm);d.appendChild(p);d.appendChild(b);sh.appendChild(d);
+  });
+}
+
+function compress(file){return new Promise(function(res,rej){
+  var fr=new FileReader();fr.onerror=rej;
+  fr.onload=function(){var im=new Image();im.onerror=rej;im.onload=function(){
+    var k=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement('canvas');
+    c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    c.toBlob(function(b){b?res(b):rej();},'image/jpeg',0.7);};im.src=fr.result;};
+  fr.readAsDataURL(file);});}
+async function submit(t,file){
+  try{
+    var up={status:'pending',has_photo:false};
+    if(file){
+      var blob=await compress(file),path=P.duo_id+'/'+t.id+'-'+Date.now()+'.jpg';
+      var u=await sb.storage.from('proofs').upload(path,blob,{contentType:'image/jpeg'});
+      if(u.error)throw u.error;up.has_photo=true;up.proof_path=path;
+    }
+    var r=await sb.from('tasks').update(up).eq('id',t.id);if(r.error)throw r.error;
+    toast('Sent for checking');refresh();
+  }catch(e){fail(e);}
+}
+async function viewPhoto(t){
+  try{var r=await sb.storage.from('proofs').createSignedUrl(t.proof_path,300);
+    if(r.error||!r.data)throw r.error;$('vimg').src=r.data.signedUrl;$('view').hidden=false;
+  }catch(e){fail(e);}
+}
+async function claim(){
+  if(busy)return;busy=true;
+  try{
+    var todo=tasks.filter(function(t){return t.assignee===me.id&&t.status==='approved'&&!t.claimed;});
+    var N={coins:P.coins,xp:P.xp,level:P.level,streak:P.streak,last_day:P.last_day},did=false;
+    for(var i=0;i<todo.length;i++){
+      var t=todo[i],g=SIZES[t.size]||SIZES.s,msg='+'+g.c+' coins, +'+g.x+' EXP';
+      var c=await sb.from('tasks').update({claimed:true}).eq('id',t.id).eq('claimed',false).select();
+      if(c.error||!c.data||!c.data.length)continue;
+      N.coins+=g.c;N.xp+=g.x;
+      while(N.xp>=need(N.level)){N.xp-=need(N.level);N.level++;msg='Level up! You’re level '+N.level;}
+      if(N.last_day!==ds(0)){N.streak=(N.last_day===ds(-1))?N.streak+1:1;N.last_day=ds(0);}
+      var r=await sb.from('profiles').update(N).eq('id',me.id);
+      if(!r.error){toast('Approved! '+msg);did=true;}
+    }
+    if(did)refresh();
+  }catch(e){console.error(e);}
+  busy=false;
+}
+
+async function auth(kind){
+  var em=$('email').value.trim(),pw=$('pw').value,nk=$('nick').value.trim(),err=$('autherr');err.textContent='';
+  if(!em||pw.length<6){err.textContent='Enter your email and a password of at least 6 characters.';return;}
+  var r;
+  if(kind==='up'){
+    if(!nk){err.textContent='Pick a nickname for your new account.';return;}
+    r=await sb.auth.signUp({email:em,password:pw,options:{data:{name:nk}}});
+    if(!r.error&&!r.data.session){err.textContent='Account created. Check your email to confirm it, then log in.';return;}
+  }else r=await sb.auth.signInWithPassword({email:em,password:pw});
+  if(r.error){err.textContent=r.error.message;return;}
+  me=r.data.user;await start();
+}
+$('authform').addEventListener('submit',function(e){e.preventDefault();auth('in');});
+$('signup').onclick=function(){auth('up');};
+$('out').onclick=async function(){await sb.auth.signOut();location.reload();};
+$('mkduo').onclick=async function(){var r=await sb.rpc('create_duo');if(r.error)fail(r.error);else loadAll();};
+$('joinform').addEventListener('submit',async function(e){
+  e.preventDefault();var r=await sb.rpc('join_duo',{c:$('jcode').value});
+  if(r.error)fail(r.error);else if(!r.data)toast('Code not found, or that duo is full');else loadAll();
+});
+$('add').addEventListener('submit',function(e){
+  e.preventDefault();var v=$('title').value.trim();if(!v)return;
+  var to=($('for').value==='them'&&Q)?Q.id:me.id;
+  sb.from('tasks').insert({title:v,size:$('size').value,creator:me.id,assignee:to,duo_id:P.duo_id}).then(function(r){if(r.error)fail(r.error);else{$('title').value='';refresh();}});
+});
+$('pick').addEventListener('change',function(){var f=this.files&&this.files[0],t=pickFor;this.value='';pickFor=null;if(f&&t)submit(t,f);});
+$('vclose').onclick=function(){$('view').hidden=true;$('vimg').removeAttribute('src');};
+init();
+})();
+</script>
+</body>
+</html>
