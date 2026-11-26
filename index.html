@@ -48,6 +48,12 @@ li.approved .t{text-decoration:line-through;color:var(--muted)}
 #view{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;z-index:8}
 #view img{max-width:100%;max-height:75vh;border:4px solid var(--wood2);background:var(--panel)}
 .code{font-family:'Press Start 2P',ui-monospace,monospace;font-size:16px;color:var(--berry)}
+.cheers{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+#msgs{max-height:260px;overflow-y:auto;margin-bottom:10px}
+.msg{padding:6px 10px;border:3px solid var(--wood);background:var(--bg);overflow-wrap:anywhere}
+.msg.me{border-color:var(--grass)}
+.msg.cheer{border-color:var(--sun)}
+.msg b{display:block;font-weight:400;font-size:17px;color:var(--muted)}
 @media (max-width:520px){.heroes{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
@@ -103,6 +109,17 @@ li.approved .t{text-decoration:line-through;color:var(--muted)}
     </section>
     <section class="box"><h2>My quests</h2><ul id="mine"></ul></section>
     <section class="box" id="theirbox"><h2 id="theirh"></h2><ul id="theirs"></ul></section>
+    <section class="box" id="chatbox" hidden>
+      <h2>Chat</h2>
+      <div class="cheers">
+        <button class="alt" data-c="👏 High five!">👏 High five</button>
+        <button class="alt" data-c="🔥 You can do it!">🔥 You can do it</button>
+        <button class="alt" data-c="🎉 Nice work!">🎉 Nice work</button>
+        <button class="alt" data-c="💪 Let’s go!">💪 Let’s go</button>
+      </div>
+      <ul id="msgs" aria-live="polite"></ul>
+      <form id="chatform"><input type="text" id="chatin" maxlength="300" placeholder="Say something…" aria-label="Message"><button type="submit">Send</button></form>
+    </section>
     <section class="box"><h2>Shop</h2><div class="shop" id="shop"></div></section>
     <p class="note">Coins and EXP are paid out only after your partner approves a quest.</p>
     <p><button class="alt" id="leave">Leave duo</button></p>
@@ -121,7 +138,7 @@ var $=function(i){return document.getElementById(i);};
 var SIZES={s:{c:5,x:10},m:{c:10,x:20},l:{c:20,x:40}};
 var ITEMS=[{id:'straw',name:'Straw hat',slot:'hat',price:30},{id:'crown',name:'Gold crown',slot:'hat',price:120},{id:'shades',name:'Sunglasses',slot:'face',price:40},{id:'scarf',name:'Berry scarf',slot:'neck',price:25},{id:'teal',name:'Teal shirt',slot:'shirt',price:20},{id:'plum',name:'Plum shirt',slot:'shirt',price:20}];
 var SHIRT={none:'#5f9e3f',teal:'#2f9aa6',plum:'#8a4fa0'};
-var sb,me,P,Q,tasks=[],names={},busy=false,pickFor=null,tt,lt,subbed=false;
+var sb,me,P,Q,tasks=[],names={},busy=false,pickFor=null,tt,lt,subbed=false,msgs=[],lastId=null,seeded=false;
 function need(l){return 50*l;}
 function ds(o){var d=new Date();d.setDate(d.getDate()+o);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){t.classList.remove('on');},2400);}
@@ -146,7 +163,7 @@ async function start(){
   say('Loading…');
   await loadAll();
   if(!subbed){subbed=true;
-    sb.channel('kq').on('postgres_changes',{event:'*',schema:'public',table:'tasks'},refresh).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},refresh).subscribe();
+    sb.channel('kq').on('postgres_changes',{event:'*',schema:'public',table:'tasks'},refresh).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},refresh).on('postgres_changes',{event:'*',schema:'public',table:'messages'},refresh).subscribe();
     setInterval(refresh,20000);}
 }
 function refresh(){clearTimeout(lt);lt=setTimeout(loadAll,250);}
@@ -162,6 +179,8 @@ async function loadAll(){
   if(!P.duo_id){show('duo');return;}
   var t=await sb.from('tasks').select('*').order('created_at',{ascending:false});
   tasks=t.data||[];
+  var mm=await sb.from('messages').select('*').order('created_at',{ascending:false}).limit(50);
+  msgs=(mm.data||[]).slice().reverse();
   show('app');render();claim();
 }
 
@@ -179,7 +198,7 @@ function render(){
   sel.value=(v==='them'&&Q)?'them':'me';
   list($('mine'),tasks.filter(function(t){return t.assignee===me.id;}),true);
   if(Q)list($('theirs'),tasks.filter(function(t){return t.assignee===Q.id;}),false);
-  shop();
+  shop();renderChat();
 }
 function btn(txt,cls,fn){var b=document.createElement('button');b.textContent=txt;if(cls)b.className=cls;b.onclick=fn;return b;}
 function setStatus(t,s){sb.from('tasks').update({status:s}).eq('id',t.id).then(function(r){if(r.error)fail(r.error);else refresh();});}
@@ -279,6 +298,28 @@ async function auth(kind){
   if(r.error){err.textContent=r.error.message;return;}
   me=r.data.user;await start();
 }
+function renderChat(){
+  $('chatbox').hidden=!Q;
+  var ul=$('msgs'),n=msgs.length,newest=n?msgs[n-1]:null,newId=newest?newest.id:null;
+  ul.innerHTML='';
+  msgs.forEach(function(m){
+    var li=document.createElement('li');li.className='msg'+(m.sender===me.id?' me':'')+(m.kind==='cheer'?' cheer':'');
+    var b=document.createElement('b');b.textContent=(m.sender===me.id?'You':(names[m.sender]||'Partner'))+' · '+new Date(m.created_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    var s=document.createElement('span');s.textContent=m.body;
+    li.appendChild(b);li.appendChild(s);ul.appendChild(li);
+  });
+  if(newId!==lastId){
+    ul.scrollTop=ul.scrollHeight;
+    if(seeded&&newest&&newest.sender!==me.id)toast((names[newest.sender]||'Partner')+': '+newest.body.slice(0,40));
+  }
+  lastId=newId;seeded=true;
+}
+function sendMsg(body,kind){
+  body=(body||'').trim();if(!body||!P)return;
+  sb.from('messages').insert({duo_id:P.duo_id,sender:me.id,body:body,kind:kind}).then(function(r){if(r.error)fail(r.error);else refresh();});
+}
+$('chatform').addEventListener('submit',function(e){e.preventDefault();var v=$('chatin').value;$('chatin').value='';sendMsg(v,'chat');});
+Array.prototype.forEach.call(document.querySelectorAll('.cheers button'),function(b){b.onclick=function(){sendMsg(b.getAttribute('data-c'),'cheer');};});
 $('authform').addEventListener('submit',function(e){e.preventDefault();auth('in');});
 $('signup').onclick=function(){auth('up');};
 $('out').onclick=async function(){await sb.auth.signOut();location.reload();};
